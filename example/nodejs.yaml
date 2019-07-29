@@ -1,0 +1,28 @@
+--- 
+
+  - hosts: logservers
+    name: Deploy Simple NodeJs
+
+    tasks: 
+    - name: Install Epel Repo
+      ignore_errors: True
+      dnf: 
+        name: epel-release
+        state: present
+
+    - name: Enable remi repo and import GPG keys
+      ignore_errors: True
+      dnf: 
+          disablerepo: cdrepo
+          name: "http://rpms.remirepo.net/enterprise/remi-release-7.rpm"
+          state: present
+    - name: Enable GPG key for remi repo.
+
+      rpm_key: 
+        key: "http://rpms.remirepo.net/RPM-GPG-KEY-remi"
+        state: present
+    
+    - dnf: 
+       - name: npm 
+         state: present
+    
