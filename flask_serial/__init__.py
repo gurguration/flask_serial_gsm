@@ -21,14 +21,17 @@ SERIAL_LOG_WARNING = 0x04
 SERIAL_LOG_ERR = 0x05
 SERIAL_LOG_DEBUG = 0x6
 
+
+print('inside init.py')
+
 class Ser:
     """serial class,use thire library: pyserial"""
     def __init__(self):
         # default serial args
         self.serial = serial.Serial()
-        self.serial.timeout  = 0.1
-        self.serial.port     = "COM1"
-        self.serial.baudrate = 9600
+        self.serial.timeout  = 1
+        self.serial.port     = "/dev/ttyUSB0"
+        self.serial.baudrate = 115200
         self.serial.bytesize = 8
         self.serial.parity   = "N"
         self.serial.stopbits = 1
@@ -63,15 +66,24 @@ class Ser:
                     self._open_serial()
             time.sleep(1)
         while self.serial_alive:
-            time.sleep(0.1)
+            
             while run:
                 try:
-                    b = self.serial.read(self.max_recv_buf_len)
+                    b = ''
+                    # self.serial.write(b'AT')
+                    time.sleep(1)
+                    if self.serial.in_waiting > 0:
+                        # print('reading serial')
+                        b = self.serial.readline()
+                        # print(b.decode())
+                    # print('printing B')
                     if not b:
                         break
                     self._handle_on_message(b)
                     self._easy_log(SERIAL_LOG_INFO, "serial receive message:%s", b)
                 except Exception as e:
+                    print(e)
+                    print('caught exception on read')
                     pass
 
     def _open_serial(self):
@@ -84,13 +96,14 @@ class Ser:
             except serial.SerialException as e:
                 # print("[ERR] open serial error!!! %s" % e)
                 # self._easy_log(SERIAL_LOG_ERR, "open serial error!!! %s", e)
-                raise
+                raise e
             else:
                 self.serial_alive = True
+                print('setting serial to alive ', self.serial_alive)
                 self._thread = threading.Thread(target=self._recv)
                 self._thread.setDaemon(True)
                 self._thread.start()
-                # print("[INFO] open serial success: %s / %s"%(self.serial.port, self.serial.baudrate))
+                print("[INFO] open serial success: %s / %s"%(self.serial.port, self.serial.baudrate))
                 self._easy_log(SERIAL_LOG_INFO, "open serial success: %s / %s",self.serial.port, self.serial.baudrate)
         else:
             print("[ERR] port is not setting!!!")
@@ -105,27 +118,36 @@ class Ser:
             pass
 
     def _recv(self):
+        print('inside recv')
         """serial recv thread"""
-        while self.serial_alive:
+        if self.serial.in_waiting > 0:
             time.sleep(0.1)
-            while self.serial_alive:
-                try:
-                    b = self.serial.read(self.max_recv_buf_len)
-                    if not b:
-                        break
-                    # s = str(binascii.b2a_hex(b).decode('utf-8')).upper()
-                    self._handle_on_message(b)
-                    self._easy_log(SERIAL_LOG_INFO, "serial receive message:%s", b)
-                except Exception as e:
-                    pass
-                    # self.serial_alive = False
-                    # self._easy_log(SERIAL_LOG_ERR, "serial err:%s", e)
+            readx = self.serial.readline()
+            print(readx.decode())
+
+        # while self.serial_alive:
+        #     time.sleep(0.1)
+        #     while self.serial_alive:
+        #         try:
+        #             print('inside serial read')
+        #             b = self.serial.read(self.max_recv_buf_len)
+        #             print(b.decode())
+        #             time.sleep(0.5)
+        #             if not b:
+        #                 break
+        #             # s = str(binascii.b2a_hex(b).decode('utf-8')).upper()
+        #             self._handle_on_message(b)
+        #             self._easy_log(SERIAL_LOG_INFO, "serial receive message:%s", b)
+        #         except Exception as e:
+        #             pass
+        #             print(e, 'exception in recv')
+        #             # self.serial_alive = False
+        #             # self._easy_log(SERIAL_LOG_ERR, "serial err:%s", e)
 
     @property
     def on_message(self):
         """ If implemented, called when the serial has receive message.
         Defined to allow receive.
-
         """
         return self._on_message
 
@@ -136,17 +158,19 @@ class Ser:
 
     def _handle_on_message(self, message):
         """serial receive message handle"""
+        print('serial receive message handle')
         self.on_message(message)
 
     def on_send(self, msg):
         """send msg,
         msg: type of bytes or str"""
+        print('inside on_send')
         with self._callback_mutex:
             if msg:
                 if isinstance(msg, bytes):
-                    self.serial.write(msg)
+                    self.serial.write(b'msg'+b'\r\n')
                 if isinstance(msg, str):
-                    self.serial.write(msg.encode('utf-8'))
+                    self.serial.write((msg +'\n').encode())
             self._easy_log(SERIAL_LOG_INFO, "serial send message: %s", msg)
 
     @property
@@ -188,6 +212,7 @@ class Ser:
                 pass
 
 class Serial:
+    print('inside Serial Class')
     def __init__(self, app):
         self.ser = Ser()
         if app is not None:
@@ -216,6 +241,7 @@ class Serial:
             self.ser.on_message = handler
             return handler
         return decorator
+
 
     def on_send(self, msg):
         """serial send message
